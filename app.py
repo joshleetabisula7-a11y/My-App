@@ -1,47 +1,71 @@
-from flask import Flask, send_from_directory, request, jsonify, redirect
-import subprocess, os
+from flask import Flask, request, send_file, jsonify
+import os
 
-app = Flask(__name__, static_folder="static")
-UPLOAD_FOLDER = "uploads"
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+app = Flask(__name__)
+
+UPLOAD_DIR = "uploads"
+
+# create uploads folder if not exist
+if not os.path.exists(UPLOAD_DIR):
+    os.makedirs(UPLOAD_DIR)
+
 
 @app.route("/")
 def home():
-    return send_from_directory("static", "index.html")
+    # serve index.html file
+    return send_file("index.html")
 
-# Upload file
+
 @app.route("/upload", methods=["POST"])
 def upload_file():
-    file = request.files.get("file")
-    if not file:
-        return "No file uploaded"
+    if "file" not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
 
-    save_path = os.path.join(UPLOAD_FOLDER, file.filename)
+    file = request.files["file"]
+    save_path = os.path.join(UPLOAD_DIR, file.filename)
     file.save(save_path)
-    return redirect("/")
 
-# List uploaded files
-@app.route("/list")
+    return jsonify({"message": "Uploaded!", "filename": file.filename}), 200
+
+
+@app.route("/files", methods=["GET"])
 def list_files():
-    files = os.listdir(UPLOAD_FOLDER)
+    files = os.listdir(UPLOAD_DIR)
     return jsonify(files)
 
-# Run python file
-@app.route("/run/<filename>")
-def run_python(filename):
-    full = os.path.join(UPLOAD_FOLDER, filename)
-    if not filename.endswith(".py"):
-        return "<h3>❌ Only .py files can be executed</h3>"
-    if not os.path.exists(full):
-        return "File not found"
 
-    out = subprocess.run(["python3", full], capture_output=True, text=True)
-    return f"<pre>{out.stdout}\n{out.stderr}</pre>"
+@app.route("/open/<filename>", methods=["GET"])
+def open_file(filename):
+    path = os.path.join(UPLOAD_DIR, filename)
+    if not os.path.exists(path):
+        return jsonify({"error": "File not found"}), 404
 
-# Download txt
-@app.route("/download/<filename>")
-def download(filename):
-    return send_from_directory(UPLOAD_FOLDER, filename)
+    return send_file(path)
+
+
+@app.route("/search", methods=["POST"])
+def search_keyword():
+    data = request.get_json()
+    filename = data.get("filename")
+    keyword = data.get("keyword")
+
+    if not filename or not keyword:
+        return jsonify({"error": "Missing data"}), 400
+
+    path = os.path.join(UPLOAD_DIR, filename)
+
+    if not os.path.exists(path):
+        return jsonify({"error": "File not found"}), 404
+
+    results = []
+    with open(path, "r", encoding="utf8", errors="ignore") as f:
+        for line in f.readlines():
+            if keyword.lower() in line.lower():
+                results.append(line.strip())
+
+    return jsonify(results)
+
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
