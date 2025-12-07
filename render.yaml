@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: python-run-upload
+    name: python-runner-ui
     runtime: python
     plan: starter
     envVars:
