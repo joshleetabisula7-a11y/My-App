@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Python Host 24/7</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+body {
+    background: #0d0d0d;
+    color: white;
+    font-family: Arial;
+    padding: 20px;
+}
+
+.box {
+    background: #1a1a1a;
+    padding: 20px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+}
+
+button {
+    background: purple;
+    border: none;
+    padding: 10px 15px;
+    color: white;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+input, select {
+    padding: 10px;
+    width: 100%;
+    margin-top: 5px;
+    border-radius: 5px;
+}
+</style>
+</head>
+<body>
+
+<h2>🔥 Simple Python Host Website (24/7 on Render)</h2>
+
+<div class="box">
+    <h3>📤 Upload File</h3>
+    <input type="file" id="uploadFile">
+    <button onclick="upload()">Upload</button>
+    <p id="uploadStatus"></p>
+</div>
+
+<div class="box">
+    <h3>📁 Files</h3>
+    <button onclick="loadFiles()">Refresh File List</button>
+    <ul id="fileList"></ul>
+</div>
+
+<div class="box">
+    <h3>🔍 Search Keyword in File</h3>
+    <select id="fileSelect"></select>
+    <input id="keyword" placeholder="Enter keyword">
+    <button onclick="search()">Search</button>
+    <pre id="results"></pre>
+</div>
+
+<script>
+function upload() {
+    let file = document.getElementById("uploadFile").files[0];
+    let form = new FormData();
+    form.append("file", file);
+
+    fetch("/upload", { method: "POST", body: form })
+        .then(res => res.json())
+        .then(res => {
+            document.getElementById("uploadStatus").innerText = res.message;
+            loadFiles();
+        });
+}
+
+function loadFiles() {
+    fetch("/files")
+        .then(res => res.json())
+        .then(files => {
+            let list = document.getElementById("fileList");
+            let select = document.getElementById("fileSelect");
+            list.innerHTML = "";
+            select.innerHTML = "";
+
+            files.forEach(f => {
+                list.innerHTML += `<li>${f} — <a href="/open/${f}" style="color:cyan">Open</a></li>`;
+                select.innerHTML += `<option>${f}</option>`;
+            });
+        });
+}
+
+function search() {
+    let filename = document.getElementById("fileSelect").value;
+    let keyword = document.getElementById("keyword").value;
+
+    fetch("/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename, keyword })
+    })
+    .then(res => res.json())
+    .then(results => {
+        document.getElementById("results").innerText =
+            results.length ? results.join("\n") : "No matches found.";
+    });
+}
+</script>
+
+</body>
+</html>
