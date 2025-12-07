@@ -1,87 +1,177 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
 <head>
-<title>Python Host 24/7</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-
-<style>
-body {
-    background: #0d0d0d;
-    color: white;
-    font-family: Arial;
-    padding: 20px;
-}
-
-.box {
-    background: #1a1a1a;
-    padding: 20px;
-    border-radius: 10px;
-    margin-bottom: 20px;
-}
-
-button {
-    background: purple;
-    border: none;
-    padding: 10px 15px;
-    color: white;
-    border-radius: 5px;
-    cursor: pointer;
-}
-
-input, select {
-    padding: 10px;
-    width: 100%;
-    margin-top: 5px;
-    border-radius: 5px;
-}
-</style>
+  <meta charset="utf-8">
+  <title>Python Host — Upload & Run</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    :root{--bg:#0b0c10;--card:#111217;--accent:#4c79ff;--muted:#9aa0b4}
+    body{background:linear-gradient(180deg,#06060a 0,#0b0c10 100%);color:#eef2ff;font-family:Inter,Arial,Helvetica,sans-serif;margin:0;padding:20px}
+    .container{max-width:980px;margin:0 auto}
+    header{display:flex;align-items:center;justify-content:space-between}
+    h1{font-size:20px;margin:0}
+    .row{display:flex;gap:20px;flex-wrap:wrap;margin-top:18px}
+    .card{background:var(--card);padding:16px;border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,0.5);flex:1;min-width:260px}
+    input[type=file]{width:100%}
+    button{background:var(--accent);border:none;padding:10px 12px;color:white;border-radius:8px;cursor:pointer;font-weight:600}
+    .file-list{margin-top:10px;display:flex;flex-direction:column;gap:8px}
+    .file-item{background:rgba(255,255,255,0.02);padding:10px;border-radius:8px;display:flex;justify-content:space-between;align-items:center}
+    a.small{color:var(--accent);text-decoration:none;margin-left:8px}
+    pre{background:#06060a;padding:12px;border-radius:8px;color:#cfe9ff;white-space:pre-wrap;max-height:300px;overflow:auto}
+    .muted{color:var(--muted);font-size:13px}
+    .actions button{margin-left:8px}
+  </style>
 </head>
 <body>
+  <div class="container">
+    <header>
+      <h1>🔥 Python Host — Upload • Run • pip install</h1>
+      <div class="muted">Uploads will be saved in root /uploads</div>
+    </header>
 
-<h2>🔥 Simple Python Host Website (24/7 on Render)</h2>
+    <div class="row">
+      <div class="card" style="flex-basis:320px">
+        <h3>Upload file</h3>
+        <form id="uploadForm">
+          <input type="file" id="fileInput" required>
+          <div style="height:10px"></div>
+          <button type="submit">Upload</button>
+        </form>
+        <p id="uploadStatus" class="muted"></p>
+        <hr style="border:none;height:8px">
+        <h4>Install requirements (uploaded)</h4>
+        <div style="display:flex;gap:8px">
+          <select id="reqSelect"></select>
+          <button id="installBtn">Install</button>
+        </div>
+        <p class="muted">Select an uploaded requirements file (eg. requirements.txt) then click Install</p>
+      </div>
 
-<div class="box">
-    <h3>📤 Upload File</h3>
-    <input type="file" id="uploadFile">
-    <button onclick="upload()">Upload</button>
-    <p id="uploadStatus"></p>
-</div>
+      <div class="card" style="flex:1 1 520px">
+        <h3>Files</h3>
+        <div style="display:flex;gap:10px;align-items:center">
+          <button id="refreshBtn">Refresh</button>
+          <button id="clearOut">Clear Output</button>
+        </div>
+        <div class="file-list" id="fileList"></div>
+      </div>
+    </div>
 
-<div class="box">
-    <h3>📁 Files</h3>
-    <button onclick="loadFiles()">Refresh File List</button>
-    <ul id="fileList"></ul>
-</div>
+    <div class="row" style="margin-top:18px">
+      <div class="card" style="flex-basis:100%">
+        <h3>Console Output</h3>
+        <pre id="console">No output yet. Use Run / Install to see logs here.</pre>
+      </div>
+    </div>
+  </div>
 
-<div class="box">
-    <h3>🔍 Search Keyword in File</h3>
-    <select id="fileSelect"></select>
-    <input id="keyword" placeholder="Enter keyword">
-    <button onclick="search()">Search</button>
-    <pre id="results"></pre>
-</div>
+  <script>
+    async function refreshFiles(){
+      const res = await fetch('/files');
+      const files = await res.json();
+      const list = document.getElementById('fileList');
+      const reqSelect = document.getElementById('reqSelect');
+      list.innerHTML = '';
+      reqSelect.innerHTML = '<option value="">-- select requirements file --</option>';
+      files.forEach(f=>{
+        const item = document.createElement('div');
+        item.className = 'file-item';
+        const left = document.createElement('div');
+        left.innerHTML = `<strong>${f}</strong><div class="muted">${f}</div>`;
+        const right = document.createElement('div');
+        right.className = 'actions';
 
-<script>
-function upload() {
-    let file = document.getElementById("uploadFile").files[0];
-    let form = new FormData();
-    form.append("file", file);
+        const dl = document.createElement('a');
+        dl.href = `/download/${encodeURIComponent(f)}`;
+        dl.textContent = 'Download';
+        dl.className = 'small';
+        dl.target = '_blank';
 
-    fetch("/upload", { method: "POST", body: form })
-        .then(res => res.json())
-        .then(res => {
-            document.getElementById("uploadStatus").innerText = res.message;
-            loadFiles();
-        });
-}
+        const del = document.createElement('button');
+        del.textContent = 'Delete';
+        del.onclick = async ()=> {
+          if(!confirm('Delete '+f+' ?')) return;
+          await fetch('/delete/'+encodeURIComponent(f), {method:'POST'});
+          await refreshFiles();
+        };
 
-function loadFiles() {
-    fetch("/files")
-        .then(res => res.json())
-        .then(files => {
-            let list = document.getElementById("fileList");
-            let select = document.getElementById("fileSelect");
-            list.innerHTML = "";
+        right.appendChild(dl);
+
+        if(f.toLowerCase().endsWith('.py')){
+          const run = document.createElement('button');
+          run.textContent = 'Run';
+          run.onclick = ()=> runFile(f);
+          right.appendChild(run);
+        }
+
+        if(f.toLowerCase().includes('requirement') || f.toLowerCase().endsWith('requirements.txt') || f.toLowerCase().endsWith('requirements')){
+          // make it available in select
+          const opt = document.createElement('option');
+          opt.value = f;
+          opt.textContent = f;
+          reqSelect.appendChild(opt);
+        }
+
+        right.appendChild(del);
+        item.appendChild(left);
+        item.appendChild(right);
+        list.appendChild(item);
+      });
+    }
+
+    document.getElementById('refreshBtn').addEventListener('click', refreshFiles);
+    document.getElementById('clearOut').addEventListener('click', ()=> {
+      document.getElementById('console').textContent = 'Cleared.';
+    });
+
+    document.getElementById('uploadForm').addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const file = document.getElementById('fileInput').files[0];
+      if(!file) return alert('Choose file');
+      const form = new FormData(); form.append('file', file);
+      document.getElementById('uploadStatus').textContent = 'Uploading...';
+      const res = await fetch('/upload', {method:'POST', body: form});
+      if(res.redirected) { document.getElementById('uploadStatus').textContent = 'Uploaded!'; await refreshFiles(); return; }
+      const json = await res.json();
+      document.getElementById('uploadStatus').textContent = json.message || JSON.stringify(json);
+      await refreshFiles();
+    });
+
+    async function runFile(filename){
+      document.getElementById('console').textContent = `Running ${filename} ...`;
+      const res = await fetch('/run/'+encodeURIComponent(filename), {method:'POST'});
+      const json = await res.json();
+      if(json.error){
+        document.getElementById('console').textContent = 'Error: '+ JSON.stringify(json);
+      } else {
+        document.getElementById('console').textContent =
+          `Return code: ${json.returncode}\n\nSTDOUT:\n${json.stdout}\n\nSTDERR:\n${json.stderr}`;
+      }
+    }
+
+    document.getElementById('installBtn').addEventListener('click', async ()=>{
+      const sel = document.getElementById('reqSelect').value;
+      if(!sel) return alert('Choose a requirements file first');
+      document.getElementById('console').textContent = `Installing from ${sel} ... (this may take a while)`;
+      const res = await fetch('/install_requirements', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({filename: sel})
+      });
+      const json = await res.json();
+      if(json.error){
+        document.getElementById('console').textContent = 'Error: '+JSON.stringify(json);
+      } else {
+        document.getElementById('console').textContent =
+          `pip return code: ${json.returncode}\n\nSTDOUT:\n${json.stdout}\n\nSTDERR:\n${json.stderr}`;
+      }
+    });
+
+    // initial load
+    refreshFiles();
+  </script>
+</body>
+</html>            list.innerHTML = "";
             select.innerHTML = "";
 
             files.forEach(f => {
