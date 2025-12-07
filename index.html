@@ -1,202 +1,222 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title>Python Host — Upload & Run</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta charset="utf-8" />
+  <title>Python Runner — Upload · Run · Logs</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
-    :root{--bg:#0b0c10;--card:#111217;--accent:#4c79ff;--muted:#9aa0b4}
-    body{background:linear-gradient(180deg,#06060a 0,#0b0c10 100%);color:#eef2ff;font-family:Inter,Arial,Helvetica,sans-serif;margin:0;padding:20px}
-    .container{max-width:980px;margin:0 auto}
-    header{display:flex;align-items:center;justify-content:space-between}
-    h1{font-size:20px;margin:0}
-    .row{display:flex;gap:20px;flex-wrap:wrap;margin-top:18px}
-    .card{background:var(--card);padding:16px;border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,0.5);flex:1;min-width:260px}
-    input[type=file]{width:100%}
-    button{background:var(--accent);border:none;padding:10px 12px;color:white;border-radius:8px;cursor:pointer;font-weight:600}
-    .file-list{margin-top:10px;display:flex;flex-direction:column;gap:8px}
-    .file-item{background:rgba(255,255,255,0.02);padding:10px;border-radius:8px;display:flex;justify-content:space-between;align-items:center}
-    a.small{color:var(--accent);text-decoration:none;margin-left:8px}
-    pre{background:#06060a;padding:12px;border-radius:8px;color:#cfe9ff;white-space:pre-wrap;max-height:300px;overflow:auto}
+    :root{
+      --bg:#071028; --card:#0f1724; --accent:#6C8CFF; --muted:#9fb0d6;
+      --success:#4dd38a; --danger:#ff5c6c;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:linear-gradient(180deg,var(--bg),#020312);font-family:Inter,Arial;color:#e7f0ff}
+    .wrap{max-width:1100px;margin:24px auto;padding:18px}
+    header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+    h1{margin:0;font-size:20px}
     .muted{color:var(--muted);font-size:13px}
-    .actions button{margin-left:8px}
+    .grid{display:grid;grid-template-columns:360px 1fr;gap:18px;margin-top:18px}
+    .card{background:var(--card);padding:16px;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.6)}
+    button{background:var(--accent);border:none;color:white;padding:10px 12px;border-radius:8px;cursor:pointer;font-weight:600}
+    button.warn{background:var(--danger)}
+    .list{margin-top:12px;display:flex;flex-direction:column;gap:10px}
+    .file{display:flex;justify-content:space-between;align-items:center;padding:10px;background:rgba(255,255,255,0.02);border-radius:8px}
+    .file .meta{display:flex;flex-direction:column}
+    .controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    pre{background:#02030a;padding:12px;border-radius:8px;color:#bfe9c9;white-space:pre-wrap;max-height:420px;overflow:auto}
+    .small{font-size:13px;color:var(--muted)}
+    .badge{padding:6px 8px;border-radius:8px;font-weight:700}
+    .running{background:#0e2c23;color:var(--success)}
+    .stopped{background:#2b0f13;color:var(--danger)}
+    footer{margin-top:20px;color:var(--muted);font-size:13px;text-align:center}
+    @media (max-width:880px){
+      .grid{grid-template-columns:1fr; }
+    }
   </style>
 </head>
 <body>
-  <div class="container">
+  <div class="wrap">
     <header>
-      <h1>🔥 Python Host — Upload • Run • pip install</h1>
-      <div class="muted">Uploads will be saved in root /uploads</div>
+      <div>
+        <h1>🔥 Python Runner — Upload · Run · Logs</h1>
+        <div class="small muted">Run Telegram bots or any long-running Python script on Render</div>
+      </div>
+      <div class="small muted" id="serviceUptime">Uptime: --</div>
     </header>
 
-    <div class="row">
-      <div class="card" style="flex-basis:320px">
-        <h3>Upload file</h3>
+    <div class="grid">
+      <!-- left column: upload & controls -->
+      <div class="card">
+        <h3>Upload script</h3>
         <form id="uploadForm">
-          <input type="file" id="fileInput" required>
+          <input type="file" id="fileInput" accept=".py" required />
           <div style="height:10px"></div>
-          <button type="submit">Upload</button>
+          <div class="controls">
+            <button type="submit">Upload</button>
+            <button id="refreshFiles" type="button" style="background:#233055">Refresh</button>
+          </div>
         </form>
-        <p id="uploadStatus" class="muted"></p>
-        <hr style="border:none;height:8px">
-        <h4>Install requirements (uploaded)</h4>
-        <div style="display:flex;gap:8px">
-          <select id="reqSelect"></select>
-          <button id="installBtn">Install</button>
+
+        <div style="height:14px"></div>
+        <h4>Current script</h4>
+        <div class="small muted">File: <span id="currentFile">—</span></div>
+        <div class="small muted">Script runtime: <span id="scriptRuntime">—</span></div>
+
+        <div style="height:8px"></div>
+        <div class="controls" style="margin-top:10px">
+          <button id="startBtn">Start</button>
+          <button id="stopBtn" class="warn">Stop</button>
         </div>
-        <p class="muted">Select an uploaded requirements file (eg. requirements.txt) then click Install</p>
+
+        <div style="height:10px"></div>
+        <h4 style="margin-top:12px">Files</h4>
+        <div id="fileList" class="list"></div>
       </div>
 
-      <div class="card" style="flex:1 1 520px">
-        <h3>Files</h3>
-        <div style="display:flex;gap:10px;align-items:center">
-          <button id="refreshBtn">Refresh</button>
-          <button id="clearOut">Clear Output</button>
+      <!-- right column: logs -->
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <h3 style="margin:0">Live logs</h3>
+          <div>
+            <button id="clearLogs">Clear</button>
+            <button id="downloadLog">Download Log</button>
+          </div>
         </div>
-        <div class="file-list" id="fileList"></div>
+
+        <div style="height:10px"></div>
+        <pre id="logs">Loading logs...</pre>
       </div>
     </div>
 
-    <div class="row" style="margin-top:18px">
-      <div class="card" style="flex-basis:100%">
-        <h3>Console Output</h3>
-        <pre id="console">No output yet. Use Run / Install to see logs here.</pre>
-      </div>
-    </div>
+    <footer>⚠️ Use trusted scripts only. Use environment variables in Render for secrets (BOT tokens).</footer>
   </div>
 
-  <script>
-    async function refreshFiles(){
-      const res = await fetch('/files');
-      const files = await res.json();
-      const list = document.getElementById('fileList');
-      const reqSelect = document.getElementById('reqSelect');
-      list.innerHTML = '';
-      reqSelect.innerHTML = '<option value="">-- select requirements file --</option>';
-      files.forEach(f=>{
-        const item = document.createElement('div');
-        item.className = 'file-item';
-        const left = document.createElement('div');
-        left.innerHTML = `<strong>${f}</strong><div class="muted">${f}</div>`;
-        const right = document.createElement('div');
-        right.className = 'actions';
-
-        const dl = document.createElement('a');
-        dl.href = `/download/${encodeURIComponent(f)}`;
-        dl.textContent = 'Download';
-        dl.className = 'small';
-        dl.target = '_blank';
-
-        const del = document.createElement('button');
-        del.textContent = 'Delete';
-        del.onclick = async ()=> {
-          if(!confirm('Delete '+f+' ?')) return;
-          await fetch('/delete/'+encodeURIComponent(f), {method:'POST'});
-          await refreshFiles();
-        };
-
-        right.appendChild(dl);
-
-        if(f.toLowerCase().endsWith('.py')){
-          const run = document.createElement('button');
-          run.textContent = 'Run';
-          run.onclick = ()=> runFile(f);
-          right.appendChild(run);
-        }
-
-        if(f.toLowerCase().includes('requirement') || f.toLowerCase().endsWith('requirements.txt') || f.toLowerCase().endsWith('requirements')){
-          // make it available in select
-          const opt = document.createElement('option');
-          opt.value = f;
-          opt.textContent = f;
-          reqSelect.appendChild(opt);
-        }
-
-        right.appendChild(del);
-        item.appendChild(left);
-        item.appendChild(right);
-        list.appendChild(item);
-      });
-    }
-
-    document.getElementById('refreshBtn').addEventListener('click', refreshFiles);
-    document.getElementById('clearOut').addEventListener('click', ()=> {
-      document.getElementById('console').textContent = 'Cleared.';
-    });
-
-    document.getElementById('uploadForm').addEventListener('submit', async (e)=>{
-      e.preventDefault();
-      const file = document.getElementById('fileInput').files[0];
-      if(!file) return alert('Choose file');
-      const form = new FormData(); form.append('file', file);
-      document.getElementById('uploadStatus').textContent = 'Uploading...';
-      const res = await fetch('/upload', {method:'POST', body: form});
-      if(res.redirected) { document.getElementById('uploadStatus').textContent = 'Uploaded!'; await refreshFiles(); return; }
-      const json = await res.json();
-      document.getElementById('uploadStatus').textContent = json.message || JSON.stringify(json);
-      await refreshFiles();
-    });
-
-    async function runFile(filename){
-      document.getElementById('console').textContent = `Running ${filename} ...`;
-      const res = await fetch('/run/'+encodeURIComponent(filename), {method:'POST'});
-      const json = await res.json();
-      if(json.error){
-        document.getElementById('console').textContent = 'Error: '+ JSON.stringify(json);
-      } else {
-        document.getElementById('console').textContent =
-          `Return code: ${json.returncode}\n\nSTDOUT:\n${json.stdout}\n\nSTDERR:\n${json.stderr}`;
-      }
-    }
-
-    document.getElementById('installBtn').addEventListener('click', async ()=>{
-      const sel = document.getElementById('reqSelect').value;
-      if(!sel) return alert('Choose a requirements file first');
-      document.getElementById('console').textContent = `Installing from ${sel} ... (this may take a while)`;
-      const res = await fetch('/install_requirements', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({filename: sel})
-      });
-      const json = await res.json();
-      if(json.error){
-        document.getElementById('console').textContent = 'Error: '+JSON.stringify(json);
-      } else {
-        document.getElementById('console').textContent =
-          `pip return code: ${json.returncode}\n\nSTDOUT:\n${json.stdout}\n\nSTDERR:\n${json.stderr}`;
-      }
-    });
-
-    // initial load
-    refreshFiles();
-  </script>
-</body>
-</html>            list.innerHTML = "";
-            select.innerHTML = "";
-
-            files.forEach(f => {
-                list.innerHTML += `<li>${f} — <a href="/open/${f}" style="color:cyan">Open</a></li>`;
-                select.innerHTML += `<option>${f}</option>`;
-            });
-        });
+<script>
+async function api(path, opts){ 
+  const res = await fetch(path, opts || {});
+  const ct = res.headers.get('content-type')||'';
+  if(ct.includes('application/json')) return await res.json();
+  return res;
 }
 
-function search() {
-    let filename = document.getElementById("fileSelect").value;
-    let keyword = document.getElementById("keyword").value;
+async function refreshFiles(){
+  const j = await api('/api/files');
+  const files = j.files || [];
+  const list = document.getElementById('fileList');
+  list.innerHTML = '';
+  let current = null;
+  files.forEach(f=>{
+    const item = document.createElement('div'); item.className='file';
+    const meta = document.createElement('div'); meta.className='meta';
+    meta.innerHTML = `<strong>${f}</strong><div class="small muted">${f}</div>`;
+    const actions = document.createElement('div');
+    // download
+    const dl = document.createElement('a'); dl.href=`/api/download/${encodeURIComponent(f)}`; dl.textContent='Download'; dl.className='small'; dl.target='_blank'; dl.style.marginRight='8px';
+    actions.appendChild(dl);
+    // start button (for .py)
+    if(f.toLowerCase().endsWith('.py')){
+      const run = document.createElement('button'); run.textContent='Start'; run.onclick = ()=> startScript(f);
+      const stop = document.createElement('button'); stop.textContent='Stop'; stop.onclick = ()=> stopScript();
+      actions.appendChild(run); actions.appendChild(stop);
+    }
+    // delete
+    const del = document.createElement('button'); del.textContent='Delete'; del.onclick = ()=> deleteFile(f);
+    del.style.marginLeft = '8px';
+    actions.appendChild(del);
 
-    fetch("/search", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filename, keyword })
-    })
-    .then(res => res.json())
-    .then(results => {
-        document.getElementById("results").innerText =
-            results.length ? results.join("\n") : "No matches found.";
-    });
+    item.appendChild(meta); item.appendChild(actions);
+    list.appendChild(item);
+    if(!current) current = f;
+  });
+  // show current uploaded file (the UI treats the last uploaded file as "current")
+  document.getElementById('currentFile').innerText = files.length ? files[files.length-1] : '—';
 }
+
+document.getElementById('refreshFiles').addEventListener('click', refreshFiles);
+
+document.getElementById('uploadForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const file = document.getElementById('fileInput').files[0];
+  if(!file) return alert('Choose a file');
+  const fd = new FormData(); fd.append('file', file);
+  const r = await fetch('/api/upload', {method:'POST', body: fd});
+  const j = await r.json();
+  if(j.ok){ alert('Uploaded: '+j.filename); await refreshFiles(); }
+  else alert('Upload error: '+(j.error||'unknown'));
+});
+
+// Start script (runs the last uploaded or provided filename)
+async function startScript(filename=null){
+  if(!filename){
+    const f = document.getElementById('currentFile').innerText;
+    if(!f || f==='—') return alert('No file to start');
+    filename = f;
+  }
+  const r = await fetch('/api/start', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({filename})});
+  const j = await r.json();
+  if(j.ok) {
+    alert('Started pid: '+ j.pid);
+  } else {
+    alert('Start error: '+ (j.error || JSON.stringify(j)));
+  }
+  await updateStatus();
+}
+
+// Stop current running script
+async function stopScript(){
+  const r = await fetch('/api/stop', {method:'POST'});
+  const j = await r.json();
+  if(j.ok) alert('Stopped');
+  else alert('Stop error: '+ (j.error || JSON.stringify(j)));
+  await updateStatus();
+}
+
+async function deleteFile(name){
+  if(!confirm('Delete '+name+' ?')) return;
+  const r = await fetch('/api/delete/'+encodeURIComponent(name), {method:'POST'});
+  const j = await r.json();
+  if(j.ok){ alert('Deleted'); await refreshFiles(); }
+  else alert('Delete error: '+(j.error||JSON.stringify(j)));
+}
+
+// logs polling
+async function loadLogs(){
+  const res = await fetch('/api/logs');
+  const text = await res.text();
+  document.getElementById('logs').textContent = text;
+}
+setInterval(loadLogs, 1800);
+setInterval(updateStatus, 3500);
+
+// status & runtime
+async function updateStatus(){
+  const s = await fetch('/api/status');
+  const j = await s.json();
+  document.getElementById('serviceUptime').innerText = 'Uptime: ' + (j.service_uptime.display || '--');
+  if(j.script_running){
+    document.getElementById('scriptRuntime').innerText = j.script_runtime.display;
+  } else {
+    document.getElementById('scriptRuntime').innerText = '—';
+  }
+}
+
+// clear logs (client-side only)
+document.getElementById('clearLogs').addEventListener('click', ()=>{ document.getElementById('logs').textContent = ''; });
+
+// download log for current running file
+document.getElementById('downloadLog').addEventListener('click', async ()=>{
+  const s = await fetch('/api/status');
+  const j = await s.json();
+  const fname = j.script_meta && j.script_meta.filename;
+  if(!fname) return alert('No running script log available');
+  const url = `/api/download/${encodeURIComponent(fname)}.log`;
+  window.open(url, '_blank');
+});
+
+// initial
+refreshFiles();
+loadLogs();
+updateStatus();
 </script>
-
 </body>
 </html>
